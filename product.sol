@@ -1,50 +1,66 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 contract ProductInventory {
-    // Mapping to track product stock by product name (as bytes32)
-    mapping(bytes32 => uint) private _productStock;
+    // Struct to store product details
+    struct Product {
+        string name;
+        uint quantity;
+        uint price;
+    }
+    
+    // Mapping to store each product by its ID
+    mapping(uint => Product) private products;
+    uint private productCount;
 
     address public owner;
 
-    // Events for logging product operations
-    event ProductReceived(bytes32 indexed productName, uint quantity);
-    event ProductSold(bytes32 indexed productName, uint quantity);
+    // Events to log product additions and sales
+    event ProductReceived(uint productId, string name, uint quantity);
+    event ProductSold(uint productId, string name, uint quantitySold);
 
-    // Constructor to set the owner at deployment
+    // Modifier to restrict certain functions to only the owner
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the owner can perform this action.");
+        _;
+    }
+
+    // Constructor to set the owner of the contract
     constructor() {
         owner = msg.sender;
     }
 
-    // Modifier to ensure only the owner can modify the stock
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can perform this action.");
-        _;
+    // Function to add a new product to the inventory
+    function receiveProduct(string memory name, uint quantity, uint price) public onlyOwner {
+        require(quantity > 0, "Quantity must be greater than zero.");
+        require(price > 0, "Price must be greater than zero.");
+
+        productCount++;
+        products[productCount] = Product(name, quantity, price);
+
+        emit ProductReceived(productCount, name, quantity);
     }
 
-    // Function to receive new stock of a product
-    function receiveProduct(string memory productName, uint quantity) public onlyOwner {
+    // Function to sell a product
+    function saleProduct(uint productId, uint quantity) public {
+        require(products[productId].quantity >= quantity, "Not enough stock available.");
         require(quantity > 0, "Quantity must be greater than zero.");
 
-        bytes32 productKey = keccak256(abi.encodePacked(productName));
-        _productStock[productKey] += quantity;
+        products[productId].quantity -= quantity;
 
-        emit ProductReceived(productKey, quantity);
+        emit ProductSold(productId, products[productId].name, quantity);
     }
 
-    // Function to sell a product and reduce stock
-    function sellProduct(string memory productName, uint quantity) public onlyOwner {
-        bytes32 productKey = keccak256(abi.encodePacked(productName));
-        require(_productStock[productKey] >= quantity, "Insufficient stock.");
-
-        _productStock[productKey] -= quantity;
-
-        emit ProductSold(productKey, quantity);
+    // Function to view the current stock of a product
+    function displayStock(uint productId) public view returns (string memory name, uint quantity, uint price) {
+        require(productId > 0 && productId <= productCount, "Invalid product ID.");
+        
+        Product memory product = products[productId];
+        return (product.name, product.quantity, product.price);
     }
 
-    // Function to display the current stock of a product
-    function displayStock(string memory productName) public view returns (uint) {
-        bytes32 productKey = keccak256(abi.encodePacked(productName));
-        return _productStock[productKey];
+    // Function to view the total number of products
+    function totalProducts() public view returns (uint) {
+        return productCount;
     }
 }
